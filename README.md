@@ -205,7 +205,7 @@ Each Delta commit adds ~2-3 seconds. The extra latency buys full Unity Catalog l
 
 **Best for:** Production governance with full lineage and replay capability.
 
-### Optional: DLT Batch Pipeline
+### Optional: Declarative Pipelines Batch Pipeline
 
 In addition to the four streaming approaches, the project includes a **Declarative Pipeline (DLT)** for batch/historical processing. This is defined in `src/nh_dataflows/pipelines/` and deployed via `resources/nh_traffic_pipeline.yml`.
 
@@ -218,7 +218,7 @@ UC Volume (JSON files from WebTRIS fetcher)
 
 This is the architecture you'd use for non-real-time data sources — scheduled batch ingestion with full data quality expectations (valid speed 0-120 mph, valid volume >= 0, coordinates within UK bounds). It runs on serverless compute and processes historical data that the streaming pipelines don't cover.
 
-The DLT pipeline is **not part of the live demo** but is included as a reference for the production batch path.
+The spark declarative pipeline is **not part of the live demo** but is included as a reference for the production batch path.
 
 ## API Endpoints
 
@@ -267,7 +267,7 @@ The DLT pipeline is **not part of the live demo** but is included as a reference
 | **H3 geospatial (not PostGIS)** | Native Databricks H3 functions are Photon-accelerated. Eliminates PostgreSQL stored procedure dependency. |
 | **Event Hub over Service Bus** | Kafka-compatible endpoint for Spark. Replay capability. Free cold path via Capture. Fan-out to multiple consumer groups. |
 | **Lakebase for RTM** | `forEachWriter` can't write to Delta directly. Lakebase gives managed PostgreSQL with sub-50ms reads and scale-to-zero. |
-| **Inline notebooks (not package install)** | FEVM workspace file permissions prevent package installation from workspace paths. Inlining the code in notebooks avoids this entirely. |
+
 
 ## Data Model
 
