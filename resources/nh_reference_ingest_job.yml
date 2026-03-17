@@ -1,0 +1,20 @@
+resources:
+  jobs:
+    nh_reference_ingest:
+      name: "nh-reference-ingest"
+      tasks:
+        - task_key: load_references
+          notebook_task:
+            notebook_path: ../notebooks/run_reference_loader.py
+          existing_cluster_id: "${var.cluster_id}"
+
+        - task_key: fetch_traffic
+          depends_on:
+            - task_key: load_references
+          notebook_task:
+            notebook_path: ../notebooks/run_traffic_fetcher.py
+          existing_cluster_id: "${var.cluster_id}"
+
+      schedule:
+        quartz_cron_expression: "0 */5 * * * ?"
+        timezone_id: "Europe/London"

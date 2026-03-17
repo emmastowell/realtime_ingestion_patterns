@@ -1,0 +1,12 @@
+resources:
+  jobs:
+    nh_eventhub_pipeline:
+      name: "nh-eventhub-streaming-pipeline"
+      tasks:
+        - task_key: run_eventhub_streaming
+          notebook_task:
+            notebook_path: ../notebooks/run_eventhub_pipeline.py
+          existing_cluster_id: "${var.cluster_id}"
+      max_concurrent_runs: 1
+      continuous:
+        pause_status: UNPAUSED

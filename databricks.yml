@@ -1,0 +1,47 @@
+bundle:
+  name: nh_realtime_dataflows
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog name
+    default: transport
+  schema:
+    description: Unity Catalog schema name
+    default: realtime
+  volume_path:
+    description: UC Volume path for raw JSON ingestion
+    default: /Volumes/${var.catalog}/${var.schema}/raw_traffic
+  lakebase_host:
+    description: Lakebase PostgreSQL host
+    default: ""
+  node_type_id:
+    description: Compute node type (AWS vs Azure)
+    default: "i3.xlarge"
+  cluster_id:
+    description: Existing cluster ID (use for always-on clusters)
+    default: ""
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: ${workspace.host}  # Set via CLI profile or --var
+
+  azure:
+    mode: development
+    workspace:
+      host: ${workspace.host}  # Set via CLI profile
+    variables:
+      catalog: highways_realtime_pipeline
+      schema: realtime
+      node_type_id: Standard_D8ds_v5
+      cluster_id: ""  # Set to existing cluster ID or leave empty for job clusters
+
+  prod:
+    mode: production
+    workspace:
+      host: ${workspace.host}

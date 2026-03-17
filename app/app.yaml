@@ -1,0 +1,46 @@
+command:
+  - uvicorn
+  - main:app
+  - --host
+  - 0.0.0.0
+  - --port
+  - "8000"
+env:
+  # SQL Warehouse (primary serving layer for Approaches 1, 2, 4)
+  - name: DATABRICKS_SQL_WAREHOUSE_ID
+    value: "${DATABRICKS_SQL_WAREHOUSE_ID}"
+  - name: GOLD_TABLE_PREFIX
+    value: "${NH_CATALOG}.${NH_SCHEMA}"
+  # Zerobus (Approach 1)
+  - name: ZEROBUS_SERVER_ENDPOINT
+    value: "${ZEROBUS_SERVER_ENDPOINT}"
+  - name: DATABRICKS_WORKSPACE_URL
+    value: "${DATABRICKS_WORKSPACE_URL}"
+  - name: ZEROBUS_TABLE_NAME
+    value: "${NH_CATALOG}.${NH_SCHEMA}.zerobus_traffic_ingest"
+  - name: ZEROBUS_CLIENT_ID
+    value: "${ZEROBUS_CLIENT_ID}"
+  - name: ZEROBUS_CLIENT_SECRET
+    value: "${ZEROBUS_CLIENT_SECRET}"
+  # Event Hub (Approaches 2, 3, 4)
+  - name: EVENTHUB_TABLE_NAME
+    value: "${NH_CATALOG}.${NH_SCHEMA}.eventhub_xml_ingest"
+  - name: EVENTHUB_SEND_CONN_STR
+    value: "${EVENTHUB_SEND_CONN_STR}"
+  - name: EVENTHUB_TOPIC
+    value: "traffic-data"
+  # Lakebase Autoscaling (Approach 3 — RTM)
+  - name: LAKEBASE_HOST
+    value: "${LAKEBASE_HOST}"
+  - name: LAKEBASE_PORT
+    value: "5432"
+  - name: LAKEBASE_DATABASE
+    value: "traffic"
+  - name: LAKEBASE_USER
+    value: "${LAKEBASE_USER}"
+  - name: LAKEBASE_SCHEMA
+    value: "realtime"
+  - name: LAKEBASE_PASSWORD
+    value: "${LAKEBASE_PASSWORD}"
+  - name: LAKEBASE_PROJECT
+    value: "${LAKEBASE_PROJECT}"

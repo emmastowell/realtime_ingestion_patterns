@@ -1,0 +1,14 @@
+resources:
+  jobs:
+    nh_streaming_pipeline:
+      name: "nh-streaming-pipeline"
+      tasks:
+        - task_key: run_streaming
+          notebook_task:
+            notebook_path: ../notebooks/run_streaming_pipeline.py
+          existing_cluster_id: "${var.cluster_id}"
+
+      max_concurrent_runs: 1
+      # Continuous mode — the notebook runs a processingTime streaming query
+      continuous:
+        pause_status: UNPAUSED

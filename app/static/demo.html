@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real-Time Traffic Pipeline Demo</title>
+<style>
+  :root {
+    --bg: #0f1923;
+    --surface: #1a2937;
+    --surface-hover: #223344;
+    --accent: #0ea5a0;
+    --accent-glow: rgba(14, 165, 160, 0.4);
+    --accent-light: #5eead4;
+    --success: #22c55e;
+    --success-glow: rgba(34, 197, 94, 0.3);
+    --error: #ef4444;
+    --error-glow: rgba(239, 68, 68, 0.3);
+    --warn: #f59e0b;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #0d2137 0%, #1a2937 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 2rem;
+    display: flex; align-items: center; gap: 1rem;
+  }
+  header h1 { font-size: 1.3rem; font-weight: 600; }
+  header h1 span { color: var(--accent); }
+  header .subtitle { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 2rem; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+  .tab {
+    padding: 0.6rem 1.25rem; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px 8px 0 0; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+    color: var(--text-muted); transition: all 0.2s; border-bottom: 2px solid transparent;
+  }
+  .tab:hover { color: var(--text); background: var(--surface-hover); }
+  .tab.active { color: var(--accent-light); border-bottom-color: var(--accent); background: var(--surface); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Controls */
+  .controls {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 0 12px 12px 12px; padding: 1.5rem; margin-bottom: 1.5rem;
+  }
+  .controls h2 { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; color: var(--accent-light); }
+
+  .approach-selector { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .approach-option { flex: 1; min-width: 200px; }
+  .approach-option input[type="radio"] { display: none; }
+  .approach-option label {
+    display: block; padding: 0.6rem 0.75rem; background: var(--bg); border: 2px solid var(--border);
+    border-radius: 8px; cursor: pointer; transition: all 0.2s; text-align: center;
+  }
+  .approach-option label:hover { border-color: var(--accent); background: var(--surface-hover); }
+  .approach-option input:checked + label {
+    border-color: var(--accent); background: rgba(14, 165, 160, 0.1); box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .approach-option .label-title { font-weight: 600; font-size: 0.85rem; display: block; }
+  .approach-option .label-desc { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem; display: block; }
+
+  .form-row { display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .form-field { flex: 1; min-width: 100px; }
+  .form-field label {
+    display: block; font-size: 0.7rem; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem;
+  }
+  .form-field input, .form-field select {
+    width: 100%; padding: 0.5rem 0.6rem; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 0.85rem;
+  }
+  .form-field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+
+  .btn-row { display: flex; gap: 0.75rem; }
+  .inject-btn {
+    flex: 1; padding: 0.75rem; background: linear-gradient(135deg, var(--accent) 0%, #0d8a86 100%);
+    color: #fff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .inject-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+  .inject-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .inject-btn.batch { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); }
+  .inject-btn.batch:hover:not(:disabled) { box-shadow: 0 4px 20px rgba(99,102,241,0.4); }
+
+  /* Pipeline */
+  .pipeline { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 0.75rem 0; }
+  .stage {
+    flex: 0 0 auto; width: 155px; background: var(--surface); border: 2px solid var(--border);
+    border-radius: 10px; padding: 1rem 0.75rem; text-align: center; transition: all 0.4s; position: relative;
+  }
+  .stage-icon { font-size: 1.5rem; margin-bottom: 0.4rem; display: block; filter: grayscale(0.5) opacity(0.6); transition: filter 0.4s; }
+  .stage-label { font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.2rem; }
+  .stage-detail { font-size: 0.65rem; color: var(--text-muted); font-family: var(--mono); }
+  .stage-time {
+    font-family: var(--mono); font-size: 0.75rem; font-weight: 700; color: var(--accent-light);
+    margin-top: 0.4rem; min-height: 1.1em; opacity: 0; transition: opacity 0.3s;
+  }
+  .stage-time.visible { opacity: 1; }
+  .stage-status {
+    position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; opacity: 0; transition: opacity 0.3s;
+  }
+  .stage.active { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); animation: pulse 2s ease-in-out infinite; }
+  .stage.active .stage-icon { filter: none; }
+  .stage.done { border-color: var(--success); box-shadow: 0 0 15px var(--success-glow); animation: none; }
+  .stage.done .stage-icon { filter: none; }
+  .stage.done .stage-status { opacity: 1; background: var(--success); color: #fff; }
+  .stage.error { border-color: var(--error); box-shadow: 0 0 15px var(--error-glow); animation: none; }
+  .stage.error .stage-icon { filter: none; }
+  .stage.error .stage-status { opacity: 1; background: var(--error); color: #fff; }
+
+  .arrow { flex: 0 0 auto; width: 40px; height: 2px; background: var(--border); position: relative; margin-top: 3rem; transition: background 0.4s; }
+  .arrow::after {
+    content: ''; position: absolute; right: -5px; top: -4px; width: 0; height: 0;
+    border-left: 7px solid var(--border); border-top: 5px solid transparent; border-bottom: 5px solid transparent; transition: border-left-color 0.4s;
+  }
+  .arrow.done { background: var(--success); }
+  .arrow.done::after { border-left-color: var(--success); }
+  .arrow.active { background: var(--accent); animation: arrowPulse 1.5s ease-in-out infinite; }
+  .arrow.active::after { border-left-color: var(--accent); }
+
+  /* Timer */
+  .timer-section { text-align: center; margin: 1rem 0; }
+  .timer { font-family: var(--mono); font-size: 2.2rem; font-weight: 700; color: var(--accent-light); opacity: 0; transition: opacity 0.3s; }
+  .timer.visible { opacity: 1; }
+  .timer.found { color: var(--success); }
+  .timer-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 0.2rem; }
+
+  /* Payload / Response panels */
+  .detail-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+  .detail-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem; opacity: 0; transform: translateY(10px); transition: all 0.4s;
+  }
+  .detail-panel.visible { opacity: 1; transform: translateY(0); }
+  .detail-panel h4 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; }
+  .detail-panel pre {
+    background: var(--bg); border-radius: 6px; padding: 0.75rem; font-family: var(--mono);
+    font-size: 0.72rem; color: var(--accent-light); overflow-x: auto; max-height: 250px;
+    white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+  }
+
+  /* Result card */
+  .result-card {
+    background: var(--surface); border: 2px solid var(--success); border-radius: 10px;
+    padding: 1.25rem; opacity: 0; transform: translateY(15px); transition: all 0.5s; box-shadow: 0 0 25px var(--success-glow);
+  }
+  .result-card.visible { opacity: 1; transform: translateY(0); }
+  .result-card h3 { color: var(--success); font-size: 0.95rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+  .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
+  .result-item { background: var(--bg); border-radius: 6px; padding: 0.6rem; }
+  .result-item .result-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem; }
+  .result-item .result-value { font-family: var(--mono); font-size: 0.8rem; color: var(--text); word-break: break-all; }
+  .result-item.highlight .result-value { font-size: 1.3rem; font-weight: 700; color: var(--success); }
+
+  /* Batch result */
+  .batch-result {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.25rem; display: none; margin-top: 1rem;
+  }
+  .batch-result.visible { display: block; }
+  .batch-result h3 { font-size: 0.95rem; margin-bottom: 0.75rem; color: var(--accent-light); }
+  .batch-stat { display: inline-block; background: var(--bg); border-radius: 6px; padding: 0.5rem 1rem; margin: 0.25rem; }
+  .batch-stat .stat-value { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--accent-light); }
+  .batch-stat .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+
+  .error-banner {
+    background: rgba(239, 68, 68, 0.1); border: 1px solid var(--error); border-radius: 8px;
+    padding: 0.75rem; color: var(--error); text-align: center; font-size: 0.85rem; display: none; margin-top: 1rem;
+  }
+  .error-banner.visible { display: block; }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(14, 165, 160, 0.15); }
+    50% { box-shadow: 0 0 30px var(--accent-glow), 0 0 60px rgba(14, 165, 160, 0.25); }
+  }
+  @keyframes arrowPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+  @media (max-width: 900px) {
+    .stage { width: 120px; padding: 0.75rem 0.5rem; }
+    .arrow { width: 25px; }
+    .detail-panels { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>Roadways</span> Real-Time Pipeline Demo</h1>
+  <span class="subtitle">Four Streaming Approaches Compared</span>
+</header>
+
+<main>
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('single')">Single Record</div>
+    <div class="tab" onclick="switchTab('batch')">Batch Inject</div>
+    <div class="tab" onclick="switchTab('history')">Run History</div>
+    <div class="tab" onclick="switchTab('api')">API Docs</div>
+  </div>
+
+  <!-- Single Record Tab -->
+  <div id="tab-single" class="tab-panel active">
+    <div class="controls">
+      <h2>Inject a Test Record</h2>
+      <div class="approach-selector">
+        <div class="approach-option">
+          <input type="radio" name="approach" id="ap-zerobus" value="zerobus" checked>
+          <label for="ap-zerobus">
+            <span class="label-title">1. Zerobus + Micro-batch</span>
+            <span class="label-desc">JSON &rarr; gRPC &rarr; Delta &rarr; 1s trigger &rarr; Delta Gold &rarr; SQL Warehouse</span>
+          </label>
+        </div>
+        <div class="approach-option">
+          <input type="radio" name="approach" id="ap-eventhub" value="eventhub">
+          <label for="ap-eventhub">
+            <span class="label-title">2. Event Hub + Micro-batch</span>
+            <span class="label-desc">XML &rarr; Event Hub Kafka &rarr; 1s trigger &rarr; Delta Gold &rarr; SQL Warehouse</span>
+          </label>
+        </div>
+        <div class="approach-option">
+          <input type="radio" name="approach" id="ap-rtm" value="rtm">
+          <label for="ap-rtm">
+            <span class="label-title">3. Event Hub + Real-Time Mode</span>
+            <span class="label-desc">XML &rarr; Event Hub Kafka &rarr; record-at-a-time &rarr; Lakebase &rarr; sub-second</span>
+          </label>
+        </div>
+        <div class="approach-option">
+          <input type="radio" name="approach" id="ap-medallion" value="medallion">
+          <label for="ap-medallion">
+            <span class="label-title">4. Event Hub + Medallion (Bronze/Silver/Gold)</span>
+            <span class="label-desc">XML &rarr; Event Hub Kafka &rarr; Bronze &rarr; Silver &rarr; Gold &rarr; governed</span>
+          </label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label for="site_id">Site ID</label>
+          <input type="text" id="site_id" value="5138">
+        </div>
+        <div class="form-field">
+          <label for="avg_speed">Avg Speed (mph)</label>
+          <input type="number" id="avg_speed" value="55.0" step="0.1">
+        </div>
+        <div class="form-field">
+          <label for="total_volume">Total Volume</label>
+          <input type="number" id="total_volume" value="1500">
+        </div>
+        <div class="form-field">
+          <label for="link_length_km">Link Length (km)</label>
+          <input type="number" id="link_length_km" value="1.2" step="0.1">
+        </div>
+      </div>
+      <button class="inject-btn" id="inject-btn" onclick="injectRecord()">INJECT RECORD</button>
+    </div>
+
+    <!-- Pipeline -->
+    <div class="pipeline">
+      <div class="stage" id="stage-0">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x1F489;</span>
+        <div class="stage-label">Inject</div>
+        <div class="stage-detail" id="stage-0-detail">API endpoint</div>
+        <div class="stage-time" id="stage-0-time"></div>
+      </div>
+      <div class="arrow" id="arrow-0"></div>
+      <div class="stage" id="stage-1">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x1F4E5;</span>
+        <div class="stage-label">Ingest Table</div>
+        <div class="stage-detail" id="stage-1-detail">Delta table</div>
+        <div class="stage-time" id="stage-1-time"></div>
+      </div>
+      <div class="arrow" id="arrow-1"></div>
+      <div class="stage" id="stage-2">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x26A1;</span>
+        <div class="stage-label">Spark Streaming</div>
+        <div class="stage-detail">1s trigger + enrich + H3</div>
+        <div class="stage-time" id="stage-2-time"></div>
+      </div>
+      <div class="arrow" id="arrow-2"></div>
+      <div class="stage" id="stage-3">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x2B50;</span>
+        <div class="stage-label">Gold Table</div>
+        <div class="stage-detail">Append to Delta</div>
+        <div class="stage-time" id="stage-3-time"></div>
+      </div>
+      <div class="arrow" id="arrow-3"></div>
+      <div class="stage" id="stage-4">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x1F310;</span>
+        <div class="stage-label">API</div>
+        <div class="stage-detail">SQL Warehouse query</div>
+        <div class="stage-time" id="stage-4-time"></div>
+      </div>
+    </div>
+
+    <!-- Timer -->
+    <div class="timer-section">
+      <div class="timer" id="timer">0.00s</div>
+      <div class="timer-label">total elapsed</div>
+    </div>
+
+    <!-- Payload + API Response panels -->
+    <div class="detail-panels">
+      <div class="detail-panel" id="payload-panel">
+        <h4 id="payload-title">Injected Payload</h4>
+        <pre id="payload-content"></pre>
+      </div>
+      <div class="detail-panel" id="response-panel">
+        <h4>API Response (gold_current_traffic)</h4>
+        <pre id="response-content"></pre>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="result-card">
+      <h3>&#x2705; Record Found in Gold Table</h3>
+      <div class="result-grid">
+        <div class="result-item highlight">
+          <div class="result-label">End-to-End Latency</div>
+          <div class="result-value" id="r-latency">--</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">Ingest Method</div>
+          <div class="result-value" id="r-method">--</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">Trace ID</div>
+          <div class="result-value" id="r-trace">--</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">Site ID</div>
+          <div class="result-value" id="r-site">--</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">Road</div>
+          <div class="result-value" id="r-road">--</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">Avg Speed</div>
+          <div class="result-value" id="r-speed">--</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">Ingestion Timestamp</div>
+          <div class="result-value" id="r-ingestion-ts">--</div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">Processed Timestamp</div>
+          <div class="result-value" id="r-processed-ts">--</div>
+        </div>
+      </div>
+    </div>
+    <div class="error-banner" id="error-banner"></div>
+  </div>
+
+  <!-- Batch Tab -->
+  <div id="tab-batch" class="tab-panel">
+    <div class="controls">
+      <h2>Batch Inject — Simulate Traffic Load</h2>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">
+        Inject multiple randomised XML traffic records via Azure Event Hub.
+        Compare how micro-batch and real-time mode handle the same batch.
+      </p>
+      <div class="approach-selector" style="margin-bottom:1rem;">
+        <div class="approach-option">
+          <input type="radio" name="batch_pipeline" id="bp-rtm" value="rtm" checked>
+          <label for="bp-rtm">
+            <span class="label-title">Real-Time Mode &rarr; Lakebase</span>
+            <span class="label-desc">Per-record processing, ~3s latency</span>
+          </label>
+        </div>
+        <div class="approach-option">
+          <input type="radio" name="batch_pipeline" id="bp-microbatch" value="microbatch">
+          <label for="bp-microbatch">
+            <span class="label-title">Micro-batch &rarr; Delta Gold</span>
+            <span class="label-desc">1s trigger, foreachBatch, ~5s latency</span>
+          </label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label for="batch_count">Number of Records</label>
+          <select id="batch_count" style="font-family:var(--mono);">
+            <option value="10">10</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="250">250</option>
+            <option value="500" selected>500</option>
+            <option value="1000">1,000</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="batch_speed_min">Min Speed (mph)</label>
+          <input type="number" id="batch_speed_min" value="30" step="1">
+        </div>
+        <div class="form-field">
+          <label for="batch_speed_max">Max Speed (mph)</label>
+          <input type="number" id="batch_speed_max" value="80" step="1">
+        </div>
+      </div>
+      <button class="inject-btn batch" id="batch-btn" onclick="injectBatch()">INJECT BATCH</button>
+    </div>
+
+    <!-- Batch Pipeline -->
+    <div class="pipeline" id="batch-pipeline" style="margin-top:1rem;">
+      <div class="stage" id="bstage-0">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x1F489;</span>
+        <div class="stage-label">Inject</div>
+        <div class="stage-detail" id="bstage-0-detail">Event Hub batch</div>
+        <div class="stage-time" id="bstage-0-time"></div>
+      </div>
+      <div class="arrow" id="barrow-0"></div>
+      <div class="stage" id="bstage-1">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x1F4E5;</span>
+        <div class="stage-label">Event Hub</div>
+        <div class="stage-detail">Kafka topic</div>
+        <div class="stage-time" id="bstage-1-time"></div>
+      </div>
+      <div class="arrow" id="barrow-1"></div>
+      <div class="stage" id="bstage-2">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x26A1;</span>
+        <div class="stage-label">Real-Time Mode</div>
+        <div class="stage-detail">Per-record processing</div>
+        <div class="stage-time" id="bstage-2-time"></div>
+      </div>
+      <div class="arrow" id="barrow-2"></div>
+      <div class="stage" id="bstage-3">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x2B50;</span>
+        <div class="stage-label">Lakebase</div>
+        <div class="stage-detail">PostgreSQL INSERT</div>
+        <div class="stage-time" id="bstage-3-time"></div>
+      </div>
+      <div class="arrow" id="barrow-3"></div>
+      <div class="stage" id="bstage-4">
+        <div class="stage-status"></div>
+        <span class="stage-icon">&#x1F310;</span>
+        <div class="stage-label">API</div>
+        <div class="stage-detail">Lakebase query</div>
+        <div class="stage-time" id="bstage-4-time"></div>
+      </div>
+    </div>
+
+    <!-- Batch Timer -->
+    <div class="timer-section">
+      <div class="timer" id="batch-timer">0.00s</div>
+      <div class="timer-label">total elapsed</div>
+    </div>
+
+    <!-- Batch Stats -->
+    <div class="batch-result" id="batch-result">
+      <h3 id="batch-result-title">&#x2705; Batch Complete — All Records Processed</h3>
+      <div>
+        <div class="batch-stat"><div class="stat-value" id="b-count">--</div><div class="stat-label">Records Injected</div></div>
+        <div class="batch-stat"><div class="stat-value" id="b-inject-time">--</div><div class="stat-label">Inject Time</div></div>
+        <div class="batch-stat"><div class="stat-value" id="b-stream-time">--</div><div class="stat-label">Stream Processing</div></div>
+        <div class="batch-stat"><div class="stat-value" id="b-total-time">--</div><div class="stat-label">Total End-to-End</div></div>
+        <div class="batch-stat"><div class="stat-value" id="b-rate">--</div><div class="stat-label">Records/sec (inject)</div></div>
+      </div>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.75rem;" id="b-message"></p>
+    </div>
+    <div class="error-banner" id="batch-error-banner"></div>
+  </div>
+
+  <!-- History Tab -->
+  <div id="tab-history" class="tab-panel">
+    <div class="controls">
+      <h2>Run History — Compare Approaches</h2>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">
+        Results from previous single-record runs. Inject records using each approach to build up the comparison.
+      </p>
+    </div>
+    <div id="history-table-container">
+      <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border); text-align:left;">
+            <th style="padding:0.5rem; color:var(--accent-light); cursor:pointer;" onclick="sortHistory('approach')">Approach <span id="sort-approach"></span></th>
+            <th style="padding:0.5rem; color:var(--accent-light); cursor:pointer;" onclick="sortHistory('total')">Total <span id="sort-total"></span></th>
+            <th style="padding:0.5rem; color:var(--accent-light); cursor:pointer;" onclick="sortHistory('inject')">Inject <span id="sort-inject"></span></th>
+            <th style="padding:0.5rem; color:var(--accent-light); cursor:pointer;" onclick="sortHistory('stream')">Streaming <span id="sort-stream"></span></th>
+            <th style="padding:0.5rem; color:var(--accent-light); cursor:pointer;" onclick="sortHistory('method')">Method <span id="sort-method"></span></th>
+            <th style="padding:0.5rem; color:var(--accent-light); cursor:pointer;" onclick="sortHistory('site')">Site <span id="sort-site"></span></th>
+            <th style="padding:0.5rem; color:var(--accent-light); cursor:pointer;" onclick="sortHistory('speed')">Speed <span id="sort-speed"></span></th>
+            <th style="padding:0.5rem; color:var(--accent-light);">Trace ID</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          <tr><td colspan="8" style="padding:1rem; color:var(--text-muted); text-align:center;">No runs yet. Inject records from the Single Record tab.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- API Docs Tab -->
+  <div id="tab-api" class="tab-panel">
+    <div class="controls">
+      <h2>API Documentation</h2>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">
+        Interactive Swagger documentation for the Traffic API. Explore endpoints for traffic data, assets, and the demo inject/poll system.
+      </p>
+    </div>
+    <iframe id="swagger-frame" src="about:blank" style="width:100%; height:calc(100vh - 250px); border:1px solid var(--border); border-radius:10px; background:#fff;"></iframe>
+  </div>
+</main>
+
+<script>
+const ENDPOINTS = {
+  zerobus: '/api/v1/demo/inject',
+  eventhub: '/api/v1/demo/inject-eventhub',
+  rtm: '/api/v1/demo/inject-eventhub',
+  medallion: '/api/v1/demo/inject-eventhub'
+};
+const APPROACH_DETAILS = {
+  zerobus: {
+    ingestLabel: 'zerobus_traffic_ingest',
+    stageDetail: 'Zerobus gRPC',
+    streamDetail: '1s micro-batch trigger',
+    goldDetail: 'Append to Delta',
+    apiDetail: 'SQL Warehouse query',
+    payloadTitle: 'Injected JSON Payload',
+    pollPath: 'delta'
+  },
+  eventhub: {
+    ingestLabel: 'Event Hub (Kafka 9093)',
+    stageDetail: 'azure-eventhub SDK',
+    streamDetail: '1s micro-batch trigger',
+    goldDetail: 'Append to Delta',
+    apiDetail: 'SQL Warehouse query',
+    payloadTitle: 'Injected XML Payload',
+    pollPath: 'delta'
+  },
+  rtm: {
+    ingestLabel: 'Event Hub (Kafka 9093)',
+    stageDetail: 'azure-eventhub SDK',
+    streamDetail: 'Real-Time Mode (per record)',
+    goldDetail: 'INSERT to Lakebase',
+    apiDetail: 'Lakebase PostgreSQL',
+    payloadTitle: 'Injected XML Payload',
+    pollPath: 'lakebase'
+  },
+  medallion: {
+    ingestLabel: 'Event Hub (Kafka 9093)',
+    stageDetail: 'azure-eventhub SDK',
+    streamDetail: 'Bronze → Silver → Gold',
+    goldDetail: '3 Delta commits (governed)',
+    apiDetail: 'SQL Warehouse query',
+    payloadTitle: 'Injected XML Payload',
+    pollPath: 'delta'
+  }
+};
+
+let pollInterval = null;
+let timerRaf = null;
+let injectStartTime = null;
+let stageTimes = [null, null, null, null, null];
+let runHistory = [];
+let currentApproachLabel = '';
+
+const TAB_NAMES = ['single', 'batch', 'history', 'api'];
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', TAB_NAMES[i] === tab));
+  TAB_NAMES.forEach(name => document.getElementById(`tab-${name}`).classList.toggle('active', name === tab));
+  // Lazy-load swagger iframe only when API tab is selected
+  if (tab === 'api') {
+    const frame = document.getElementById('swagger-frame');
+    if (!frame.src || frame.src === 'about:blank') frame.src = '/docs';
+  }
+}
+
+function getApproach() { return document.querySelector('input[name="approach"]:checked').value; }
+
+function setStage(index, state) {
+  const el = document.getElementById(`stage-${index}`);
+  el.classList.remove('active', 'done', 'error');
+  const statusEl = el.querySelector('.stage-status');
+  if (state === 'active') {
+    el.classList.add('active'); statusEl.textContent = ''; statusEl.style.opacity = '0';
+    stageTimes[index] = performance.now();
+  } else if (state === 'done') {
+    el.classList.add('done'); statusEl.textContent = '\u2713'; statusEl.style.opacity = '1';
+    if (stageTimes[index] != null) {
+      const dur = ((performance.now() - stageTimes[index]) / 1000).toFixed(2);
+      const timeEl = document.getElementById(`stage-${index}-time`);
+      timeEl.textContent = dur + 's'; timeEl.classList.add('visible');
+    }
+  } else if (state === 'error') {
+    el.classList.add('error'); statusEl.textContent = '\u2717'; statusEl.style.opacity = '1';
+  } else {
+    statusEl.style.opacity = '0';
+  }
+  if (index > 0) {
+    const arrow = document.getElementById(`arrow-${index - 1}`);
+    arrow.classList.remove('active', 'done');
+    if (state === 'done') arrow.classList.add('done');
+    else if (state === 'active') arrow.classList.add('active');
+  }
+}
+
+function resetPipeline() {
+  for (let i = 0; i < 5; i++) {
+    setStage(i, 'idle');
+    const t = document.getElementById(`stage-${i}-time`);
+    t.textContent = ''; t.classList.remove('visible');
+  }
+  stageTimes = [null, null, null, null, null];
+  document.getElementById('result-card').classList.remove('visible');
+  document.getElementById('error-banner').classList.remove('visible');
+  document.getElementById('timer').classList.remove('found');
+  document.getElementById('payload-panel').classList.remove('visible');
+  document.getElementById('response-panel').classList.remove('visible');
+}
+
+function startTimer() {
+  injectStartTime = performance.now();
+  const timerEl = document.getElementById('timer');
+  timerEl.classList.add('visible'); timerEl.classList.remove('found');
+  function tick() {
+    timerEl.textContent = ((performance.now() - injectStartTime) / 1000).toFixed(2) + 's';
+    timerRaf = requestAnimationFrame(tick);
+  }
+  tick();
+}
+function stopTimer() { if (timerRaf) cancelAnimationFrame(timerRaf); timerRaf = null; }
+
+function showError(msg) { const el = document.getElementById('error-banner'); el.textContent = msg; el.classList.add('visible'); }
+function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+async function injectRecord() {
+  const btn = document.getElementById('inject-btn');
+  btn.disabled = true; btn.textContent = 'INJECTING...';
+  resetPipeline();
+
+  const approach = getApproach();
+  const details = APPROACH_DETAILS[approach];
+  currentApproachLabel = document.querySelector(`label[for="ap-${approach}"] .label-title`).textContent;
+  document.getElementById('stage-0-detail').textContent = details.stageDetail;
+  document.getElementById('stage-1-detail').textContent = details.ingestLabel;
+  document.getElementById('stage-2').querySelector('.stage-detail').textContent = details.streamDetail;
+  document.getElementById('stage-3').querySelector('.stage-detail').textContent = details.goldDetail;
+  document.getElementById('stage-4').querySelector('.stage-detail').textContent = details.apiDetail;
+  document.getElementById('payload-title').textContent = details.payloadTitle;
+
+  const body = {
+    site_id: document.getElementById('site_id').value,
+    avg_speed: parseFloat(document.getElementById('avg_speed').value),
+    total_volume: parseInt(document.getElementById('total_volume').value),
+    link_length_km: parseFloat(document.getElementById('link_length_km').value)
+  };
+
+  setStage(0, 'active');
+  startTimer();
+
+  try {
+    const resp = await fetch(ENDPOINTS[approach], {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!resp.ok) { const t = await resp.text(); throw new Error(`Inject failed (${resp.status}): ${t}`); }
+    const data = await resp.json();
+
+    // Show payload
+    const payloadPanel = document.getElementById('payload-panel');
+    document.getElementById('payload-content').textContent = data.xml_payload || JSON.stringify(body, null, 2);
+    payloadPanel.classList.add('visible');
+
+    setStage(0, 'done');
+    await delay(150);
+    // Ingest: record is now in the source table/Event Hub — no separate timing
+    setStage(1, 'done');
+    await delay(150);
+    setStage(2, 'active');
+
+    btn.textContent = 'POLLING...';
+    startPolling(data.trace_id, details.pollPath);
+  } catch (err) {
+    stopTimer(); setStage(0, 'error'); showError(err.message);
+    btn.disabled = false; btn.textContent = 'INJECT RECORD';
+  }
+}
+
+function startPolling(traceId, pollPath) {
+  let attempts = 0;
+  const isRtm = pollPath === 'lakebase';
+  const pollEndpoint = isRtm ? 'poll-lakebase' : 'poll';
+  const pollFreq = isRtm ? 800 : 1500; // Poll faster for RTM
+  const maxAttempts = isRtm ? 75 : 40;  // 60s either way
+
+  pollInterval = setInterval(async () => {
+    attempts++;
+    if (attempts > maxAttempts) {
+      clearInterval(pollInterval); stopTimer(); setStage(2, 'error');
+      showError('Timed out after 60 seconds. Is the streaming job running?');
+      resetButton(); return;
+    }
+    try {
+      const resp = await fetch(`/api/v1/demo/${pollEndpoint}/${traceId}?timeout=2`);
+      const data = await resp.json();
+      if (data.found) {
+        clearInterval(pollInterval); stopTimer();
+        const totalElapsed = (performance.now() - injectStartTime) / 1000;
+
+        // Server-side timestamps for accurate breakdown
+        const ingTs = data.ingestion_ts ? new Date(data.ingestion_ts.replace(' ', 'T') + 'Z').getTime() : null;
+        const procTs = data.processed_ts ? new Date(data.processed_ts.replace(' ', 'T') + 'Z').getTime() : null;
+        const streamSec = (ingTs && procTs) ? (procTs - ingTs) / 1000 : null;
+
+        // Inject stage already has its time from the API call
+        // Ingest: for Zerobus this includes the ~5s buffer; for EH it's near-instant
+        // We show inject time as measured, then derive the rest
+
+        // Streaming: server-side processing time
+        setStage(2, 'done');
+        if (streamSec != null) {
+          document.getElementById('stage-2-time').textContent = streamSec.toFixed(2) + 's';
+          document.getElementById('stage-2-time').classList.add('visible');
+        }
+        await delay(200);
+
+        // Gold + API: these happen as part of the poll detection
+        // Show the remainder (total - inject - streaming) split across them
+        const injectSec = stageTimes[0] != null ? (stageTimes[1] != null ?
+          (performance.now() - stageTimes[0]) / 1000 : 0) : 0;
+        // Just use the inject stage time we already captured
+        const injectTime = document.getElementById('stage-0-time').textContent;
+
+        setStage(3, 'done');
+        await delay(200);
+        setStage(4, 'done');
+
+        // Show total elapsed — this is the honest wall-clock number
+        document.getElementById('timer').textContent = totalElapsed.toFixed(2) + 's';
+        document.getElementById('timer').classList.add('found');
+        await delay(250);
+
+        // Show API response
+        const responsePanel = document.getElementById('response-panel');
+        document.getElementById('response-content').textContent = JSON.stringify(data, null, 2);
+        responsePanel.classList.add('visible');
+
+        showResult(data, totalElapsed);
+        resetButton();
+      }
+    } catch (err) { console.warn('Poll error:', err); }
+  }, pollFreq);
+}
+
+function showResult(data, clientElapsed) {
+  const totalSec = clientElapsed ? clientElapsed.toFixed(2) : data.elapsed_seconds;
+  document.getElementById('r-latency').textContent = totalSec + 's';
+  document.getElementById('r-method').textContent = data.ingest_method || '--';
+  document.getElementById('r-trace').textContent = data.trace_id || '--';
+  document.getElementById('r-site').textContent = data.site_id || '--';
+  document.getElementById('r-road').textContent = data.road_name || '--';
+  document.getElementById('r-speed').textContent = data.avg_speed != null ? data.avg_speed + ' mph' : '--';
+  document.getElementById('r-ingestion-ts').textContent = data.ingestion_ts || '--';
+  document.getElementById('r-processed-ts').textContent = data.processed_ts || '--';
+  document.getElementById('result-card').classList.add('visible');
+
+  // Save to run history
+  const injectTime = document.getElementById('stage-0-time').textContent || '--';
+  const streamTime = document.getElementById('stage-2-time').textContent || '--';
+  runHistory.unshift({
+    approach: currentApproachLabel || data.ingest_method || '--',
+    total: totalSec + 's',
+    inject: injectTime,
+    stream: streamTime,
+    method: data.ingest_method || '--',
+    site: data.site_id || '--',
+    speed: data.avg_speed != null ? data.avg_speed + ' mph' : '--',
+    trace: data.trace_id || '--',
+  });
+  renderHistory();
+}
+
+let historySortCol = null;
+let historySortAsc = true;
+
+function sortHistory(col) {
+  if (historySortCol === col) {
+    historySortAsc = !historySortAsc;
+  } else {
+    historySortCol = col;
+    historySortAsc = true;
+  }
+  // Update sort indicators
+  ['approach','total','inject','stream','method','site','speed'].forEach(c => {
+    const el = document.getElementById(`sort-${c}`);
+    if (el) el.textContent = c === col ? (historySortAsc ? '\u25B2' : '\u25BC') : '';
+  });
+  renderHistory();
+}
+
+function parseNumeric(val) {
+  const n = parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? Infinity : n;
+}
+
+function renderHistory() {
+  const tbody = document.getElementById('history-tbody');
+  if (runHistory.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:1rem; color:var(--text-muted); text-align:center;">No runs yet.</td></tr>';
+    return;
+  }
+  const sorted = [...runHistory];
+  if (historySortCol) {
+    const numericCols = ['total', 'inject', 'stream', 'speed'];
+    const isNum = numericCols.includes(historySortCol);
+    sorted.sort((a, b) => {
+      let va = a[historySortCol], vb = b[historySortCol];
+      if (isNum) { va = parseNumeric(va); vb = parseNumeric(vb); }
+      else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
+      if (va < vb) return historySortAsc ? -1 : 1;
+      if (va > vb) return historySortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+  tbody.innerHTML = sorted.map((r, i) => `
+    <tr style="border-bottom:1px solid var(--border); ${i === 0 ? 'background:rgba(14,165,160,0.05);' : ''}">
+      <td style="padding:0.5rem; font-weight:${i === 0 ? '700' : '400'};">${r.approach}</td>
+      <td style="padding:0.5rem; font-family:var(--mono); color:${i === 0 ? 'var(--success)' : 'var(--accent-light)'}; font-weight:700;">${r.total}</td>
+      <td style="padding:0.5rem; font-family:var(--mono);">${r.inject}</td>
+      <td style="padding:0.5rem; font-family:var(--mono);">${r.stream}</td>
+      <td style="padding:0.5rem; font-family:var(--mono); font-size:0.75rem;">${r.method}</td>
+      <td style="padding:0.5rem;">${r.site}</td>
+      <td style="padding:0.5rem;">${r.speed}</td>
+      <td style="padding:0.5rem; font-family:var(--mono); font-size:0.7rem; color:var(--text-muted);">${r.trace.substring(0, 8)}...</td>
+    </tr>
+  `).join('');
+}
+
+function resetButton() {
+  const btn = document.getElementById('inject-btn');
+  btn.disabled = false; btn.textContent = 'INJECT RECORD';
+}
+
+// --- Batch ---
+let batchStageTimes = [null, null, null, null, null];
+let batchTimerRaf = null;
+let batchStartTime = null;
+let batchPollInterval = null;
+
+function setBStage(index, state) {
+  const el = document.getElementById(`bstage-${index}`);
+  el.classList.remove('active', 'done', 'error');
+  const statusEl = el.querySelector('.stage-status');
+  if (state === 'active') {
+    el.classList.add('active'); statusEl.textContent = ''; statusEl.style.opacity = '0';
+    batchStageTimes[index] = performance.now();
+  } else if (state === 'done') {
+    el.classList.add('done'); statusEl.textContent = '\u2713'; statusEl.style.opacity = '1';
+    if (batchStageTimes[index] != null) {
+      const dur = ((performance.now() - batchStageTimes[index]) / 1000).toFixed(2);
+      const timeEl = document.getElementById(`bstage-${index}-time`);
+      timeEl.textContent = dur + 's'; timeEl.classList.add('visible');
+    }
+  } else if (state === 'error') {
+    el.classList.add('error'); statusEl.textContent = '\u2717'; statusEl.style.opacity = '1';
+  } else {
+    statusEl.style.opacity = '0';
+  }
+  if (index > 0) {
+    const arrow = document.getElementById(`barrow-${index - 1}`);
+    arrow.classList.remove('active', 'done');
+    if (state === 'done') arrow.classList.add('done');
+    else if (state === 'active') arrow.classList.add('active');
+  }
+}
+
+function resetBatchPipeline() {
+  for (let i = 0; i < 5; i++) {
+    setBStage(i, 'idle');
+    const t = document.getElementById(`bstage-${i}-time`);
+    t.textContent = ''; t.classList.remove('visible');
+  }
+  batchStageTimes = [null, null, null, null, null];
+  document.getElementById('batch-result').classList.remove('visible');
+  document.getElementById('batch-error-banner').classList.remove('visible');
+  document.getElementById('batch-timer').classList.remove('found');
+}
+
+function startBatchTimer() {
+  batchStartTime = performance.now();
+  const el = document.getElementById('batch-timer');
+  el.classList.add('visible'); el.classList.remove('found');
+  function tick() {
+    el.textContent = ((performance.now() - batchStartTime) / 1000).toFixed(2) + 's';
+    batchTimerRaf = requestAnimationFrame(tick);
+  }
+  tick();
+}
+function stopBatchTimer() { if (batchTimerRaf) cancelAnimationFrame(batchTimerRaf); batchTimerRaf = null; }
+
+async function injectBatch() {
+  const btn = document.getElementById('batch-btn');
+  btn.disabled = true; btn.textContent = 'INJECTING...';
+  resetBatchPipeline();
+
+  const pipeline = document.querySelector('input[name="batch_pipeline"]:checked').value;
+  const isRtm = pipeline === 'rtm';
+
+  // Update stage labels based on pipeline choice
+  document.getElementById('bstage-2').querySelector('.stage-label').textContent = isRtm ? 'Real-Time Mode' : 'Spark Streaming';
+  document.getElementById('bstage-2').querySelector('.stage-detail').textContent = isRtm ? 'Per-record processing' : '1s trigger, foreachBatch';
+  document.getElementById('bstage-3').querySelector('.stage-label').textContent = isRtm ? 'Lakebase' : 'Gold Table';
+  document.getElementById('bstage-3').querySelector('.stage-detail').textContent = isRtm ? 'PostgreSQL INSERT' : 'Append to Delta';
+  document.getElementById('bstage-4').querySelector('.stage-detail').textContent = isRtm ? 'Lakebase query' : 'SQL Warehouse query';
+
+  const count = parseInt(document.getElementById('batch_count').value);
+  const body = {
+    count: count,
+    speed_min: parseFloat(document.getElementById('batch_speed_min').value),
+    speed_max: parseFloat(document.getElementById('batch_speed_max').value),
+  };
+
+  setBStage(0, 'active');
+  document.getElementById('bstage-0-detail').textContent = `${count} XML records`;
+  startBatchTimer();
+
+  try {
+    const resp = await fetch('/api/v1/demo/inject-batch', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!resp.ok) { const t = await resp.text(); throw new Error(`Batch inject failed (${resp.status}): ${t}`); }
+    const data = await resp.json();
+
+    // Inject done
+    setBStage(0, 'done');
+    const injectTime = data.elapsed_seconds;
+    document.getElementById('bstage-0-time').textContent = injectTime + 's';
+    document.getElementById('bstage-0-time').classList.add('visible');
+
+    await delay(150);
+    setBStage(1, 'done');
+    await delay(150);
+    setBStage(2, 'active');
+    document.getElementById('bstage-2').querySelector('.stage-detail').textContent =
+      `Processing ${count} records...`;
+
+    btn.textContent = 'STREAMING...';
+
+    // Poll for the LAST trace_id — use Lakebase for RTM, Delta for micro-batch
+    const pollEndpoint = isRtm ? 'poll-lakebase' : 'poll';
+    const pollFreq = isRtm ? 1000 : 2000;
+    const streamStart = performance.now();
+    batchPollInterval = setInterval(async () => {
+      try {
+        const pollResp = await fetch(`/api/v1/demo/${pollEndpoint}/${data.last_trace_id}?timeout=2`);
+        const pollData = await pollResp.json();
+        if (pollData.found) {
+          clearInterval(batchPollInterval);
+          stopBatchTimer();
+
+          const totalElapsed = (performance.now() - batchStartTime) / 1000;
+          const streamTime = (performance.now() - streamStart) / 1000;
+          document.getElementById('batch-timer').textContent = totalElapsed.toFixed(2) + 's';
+          document.getElementById('batch-timer').classList.add('found');
+
+          setBStage(2, 'done'); await delay(200);
+          setBStage(3, 'active'); batchStageTimes[3] = performance.now();
+          setBStage(3, 'done'); await delay(200);
+          setBStage(4, 'active'); batchStageTimes[4] = performance.now();
+          setBStage(4, 'done');
+
+          // Show results
+          document.getElementById('b-count').textContent = data.count;
+          document.getElementById('b-inject-time').textContent = injectTime + 's';
+          document.getElementById('b-stream-time').textContent = streamTime.toFixed(2) + 's';
+          document.getElementById('b-total-time').textContent = totalElapsed.toFixed(2) + 's';
+          document.getElementById('b-rate').textContent = (data.count / injectTime).toFixed(0);
+          const pipeLabel = isRtm ? 'Real-Time Mode → Lakebase' : 'Micro-batch → Delta Gold';
+          document.getElementById('batch-result-title').textContent = `\u2705 Batch Complete — ${pipeLabel}`;
+          document.getElementById('b-message').textContent =
+            `${count} records via Event Hub → ${pipeLabel}. ` +
+            `Injected in ${injectTime}s, all processed in ${totalElapsed.toFixed(1)}s total. ` +
+            `Pipeline throughput: ${(count / streamTime).toFixed(0)} records/sec.`;
+          document.getElementById('batch-result').classList.add('visible');
+
+          btn.disabled = false; btn.textContent = 'INJECT BATCH';
+        }
+      } catch (err) { console.warn('Batch poll error:', err); }
+    }, pollFreq);
+
+    // Timeout after 120s
+    setTimeout(() => {
+      if (batchPollInterval) {
+        clearInterval(batchPollInterval); stopBatchTimer();
+        setBStage(2, 'error');
+        const el = document.getElementById('batch-error-banner');
+        el.textContent = 'Timed out waiting for batch to process. Is the streaming job running?';
+        el.classList.add('visible');
+        btn.disabled = false; btn.textContent = 'INJECT BATCH';
+      }
+    }, 120000);
+
+  } catch (err) {
+    stopBatchTimer(); setBStage(0, 'error');
+    const el = document.getElementById('batch-error-banner');
+    el.textContent = err.message; el.classList.add('visible');
+    btn.disabled = false; btn.textContent = 'INJECT BATCH';
+  }
+}
+</script>
+</body>
+</html>

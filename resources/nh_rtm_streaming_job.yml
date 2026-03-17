@@ -1,0 +1,12 @@
+resources:
+  jobs:
+    nh_rtm_pipeline:
+      name: "nh-rtm-streaming-pipeline"
+      tasks:
+        - task_key: run_rtm_streaming
+          notebook_task:
+            notebook_path: ../notebooks/run_rtm_pipeline.py
+          existing_cluster_id: "${var.cluster_id}"
+      max_concurrent_runs: 1
+      continuous:
+        pause_status: UNPAUSED

@@ -1,0 +1,52 @@
+[
+  {
+    "Site Name": "M25/2259B",
+    "Report Date": "12/03/2026",
+    "Time Period Ending": "08:15",
+    "Time Interval": 900,
+    "0 - Total Volume": 1842,
+    "0 - Avg mph": 58.3,
+    "Total Link Length Km": 1.2,
+    "Total Link Length Miles": 0.75
+  },
+  {
+    "Site Name": "M25/2259B",
+    "Report Date": "12/03/2026",
+    "Time Period Ending": "08:30",
+    "Time Interval": 900,
+    "0 - Total Volume": 2105,
+    "0 - Avg mph": 42.7,
+    "Total Link Length Km": 1.2,
+    "Total Link Length Miles": 0.75
+  },
+  {
+    "Site Name": "M1/4567A",
+    "Report Date": "12/03/2026",
+    "Time Period Ending": "08:15",
+    "Time Interval": 900,
+    "0 - Total Volume": 1523,
+    "0 - Avg mph": 67.1,
+    "Total Link Length Km": 0.8,
+    "Total Link Length Miles": 0.5
+  },
+  {
+    "Site Name": "M6/8901C",
+    "Report Date": "12/03/2026",
+    "Time Period Ending": "08:15",
+    "Time Interval": 900,
+    "0 - Total Volume": 987,
+    "0 - Avg mph": 72.4,
+    "Total Link Length Km": 1.5,
+    "Total Link Length Miles": 0.93
+  },
+  {
+    "Site Name": "M25/2260A",
+    "Report Date": "12/03/2026",
+    "Time Period Ending": "08:15",
+    "Time Interval": 900,
+    "0 - Total Volume": null,
+    "0 - Avg mph": null,
+    "Total Link Length Km": 1.1,
+    "Total Link Length Miles": 0.68
+  }
+]

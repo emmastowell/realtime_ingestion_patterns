@@ -1,0 +1,42 @@
+sequenceDiagram
+    autonumber off
+
+    participant XS as XML Source
+    participant FA as Function App
+    participant ZB as Zerobus
+    participant DI as Delta Ingest
+    participant DB as DLT Bronze
+    participant DS as DLT Silver
+    participant DG as DLT Gold
+    participant SB as Service Bus
+    participant EH as Event Hub
+    participant SP as Spark Streaming
+    participant LB as Lakebase
+    participant AP as API
+
+    rect rgb(210, 228, 255)
+        Note over XS,AP: Approach 1 — Function App + Zerobus + DLT
+
+        XS->>FA: XML payload
+        FA->>FA: Parse XML → JSON (~0.5s)
+        FA->>ZB: JSON record via gRPC
+        ZB->>DI: Write to Delta table (~1.4s ACK)
+        DI->>DB: Auto Loader pickup (~2s)
+        DB->>DS: Enrich, H3 index, validate (~2s)
+        DS->>DG: MERGE + aggregate (~2s)
+        DG->>LB: Unity Catalog sync
+        AP->>LB: SELECT query (<0.1s)
+        Note over XS,AP: Total latency: ~8–12 seconds end-to-end
+    end
+
+    rect rgb(210, 245, 220)
+        Note over XS,AP: Approach 2 — Event Hub Direct (Recommended)
+
+        XS->>SB: XML payload
+        SB->>EH: Native forward
+        EH->>SP: Kafka-compatible read (~0.5s)
+        SP->>SP: Parse XML + enrich + H3 + MERGE (~2–3s)
+        SP->>LB: Write gold tables (Unity Catalog sync)
+        AP->>LB: SELECT query (<0.1s)
+        Note over XS,AP: Total latency: ~3–5 seconds end-to-end
+    end

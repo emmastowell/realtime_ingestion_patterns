@@ -1,0 +1,88 @@
+flowchart TD
+    %% ─────────────────────────────────────────────────────────────
+    %% SECTION 1: CURRENT ARCHITECTURE
+    %% ─────────────────────────────────────────────────────────────
+    subgraph S1["  Current Architecture  (~5 min latency)  "]
+        direction LR
+        C1["SOAP / XML API"]:::cur
+        C2["Azure Functions"]:::cur
+        C3["Azure Service Bus\n(5 min batch)"]:::cur
+        C4["ADF + PostgreSQL\nProcs"]:::cur
+        C5["ETL Push"]:::cur
+        C6["SQL Server"]:::cur
+        C7["Function App\n(3-table join)"]:::cur
+        C8(["API Response"]):::cur
+
+        C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C8
+    end
+
+    %% ─────────────────────────────────────────────────────────────
+    %% SECTION 2: APPROACH 1
+    %% ─────────────────────────────────────────────────────────────
+    subgraph S2["  Approach 1: Function App + Zerobus + DLT  (~8–12s latency)  "]
+        direction LR
+        A1["XML Source"]:::app1
+        A2["Azure Function\n(XML → JSON)"]:::app1
+        A3["Databricks Zerobus\n(gRPC)"]:::app1
+        A4["Delta Table\n(Bronze raw)"]:::app1
+        A5["DLT Bronze"]:::app1
+        A6["DLT Silver\n(enrich, H3, validate)"]:::app1
+        A7["DLT Gold\n(MERGE)"]:::app1
+        A8["Lakebase\n(Postgres)"]:::app1
+        A9["FastAPI App"]:::app1
+        A10(["API Response"]):::app1
+
+        A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10
+    end
+
+    %% ─────────────────────────────────────────────────────────────
+    %% SECTION 3: APPROACH 2 (RECOMMENDED)
+    %% ─────────────────────────────────────────────────────────────
+    subgraph S3["  Approach 2: Event Hub Direct  (~3–5s latency)  ★ Recommended  "]
+        direction LR
+        subgraph HOT["Hot Path"]
+            direction LR
+            B1["XML Source"]:::app2
+            B2["Service Bus"]:::app2
+            B3["Event Hub\n(Kafka endpoint)"]:::app2
+            B4["Spark Structured Streaming\n(parse XML + enrich + H3 + MERGE)"]:::app2
+            B5["Delta Gold\nTables"]:::app2
+            B6["Lakebase\n(Postgres)"]:::app2
+            B7["FastAPI App"]:::app2
+            B8(["API Response"]):::app2
+
+            B1 --> B2 --> B3 --> B4 --> B5 --> B6 --> B7 --> B8
+        end
+
+        subgraph COLD["Cold Path (quality monitoring, replay, audit)"]
+            direction LR
+            D1["Event Hub"]:::cold
+            D2["ADLS\n(XML files)"]:::cold
+            D3["Auto Loader"]:::cold
+            D4["DLT\n(quality, replay, audit)"]:::cold
+
+            D1 --> D2 --> D3 --> D4
+        end
+
+        B3 -.->|"archive"| D1
+    end
+
+    %% ─────────────────────────────────────────────────────────────
+    %% LAYOUT: stack sections vertically
+    %% ─────────────────────────────────────────────────────────────
+    S1 ~~~ S2
+    S2 ~~~ S3
+
+    %% ─────────────────────────────────────────────────────────────
+    %% STYLES
+    %% ─────────────────────────────────────────────────────────────
+    classDef cur   fill:#b22222,stroke:#7a0000,color:#fff,rx:6,ry:6
+    classDef app1  fill:#1a4f8a,stroke:#0d2f54,color:#fff,rx:6,ry:6
+    classDef app2  fill:#1a6b3c,stroke:#0d3d21,color:#fff,rx:6,ry:6
+    classDef cold  fill:#2e7d5e,stroke:#1a4d39,color:#fff,rx:6,ry:6,stroke-dasharray:4 4
+
+    style S1   fill:#fff0f0,stroke:#b22222,stroke-width:2px,color:#7a0000
+    style S2   fill:#f0f4ff,stroke:#1a4f8a,stroke-width:2px,color:#0d2f54
+    style S3   fill:#f0fff4,stroke:#1a6b3c,stroke-width:2px,color:#0d3d21
+    style HOT  fill:#e6f7ed,stroke:#1a6b3c,stroke-width:1px,color:#0d3d21
+    style COLD fill:#d9f0e8,stroke:#2e7d5e,stroke-width:1px,stroke-dasharray:5 3,color:#1a4d39

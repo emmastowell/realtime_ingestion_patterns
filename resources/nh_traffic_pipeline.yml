@@ -1,0 +1,19 @@
+resources:
+  pipelines:
+    nh_traffic_pipeline:
+      name: "nh-traffic-pipeline"
+      catalog: ${var.catalog}
+      target: ${var.schema}
+      libraries:
+        - file:
+            path: ../src/nh_dataflows/pipelines/bronze.py
+        - file:
+            path: ../src/nh_dataflows/pipelines/silver.py
+        - file:
+            path: ../src/nh_dataflows/pipelines/gold.py
+      configuration:
+        "pipelines.channel": "PREVIEW"
+      photon: true
+      serverless: true
+      continuous: false
+      development: true
