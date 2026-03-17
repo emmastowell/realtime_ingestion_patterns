@@ -300,6 +300,5 @@ Run three paths from the same Event Hub:
 
 ## Documentation
 
-- [`docs/demo-guide.md`](docs/demo-guide.md) — comprehensive demo guide, stakeholder framing, lessons learned, competitive analysis
 - [`docs/latency-breakdown.md`](docs/latency-breakdown.md) — per-step latency analysis for all approaches
 
